@@ -11,6 +11,6 @@ mj:
     timeout: 30d
   translate-way: null
   queue:
-    timeout-minutes: 5
+    timeout-minutes: 10
     core-size: 3
     queue-size: 10
