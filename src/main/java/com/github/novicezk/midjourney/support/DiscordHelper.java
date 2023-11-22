@@ -3,25 +3,12 @@ package com.github.novicezk.midjourney.support;
 import cn.hutool.core.text.CharSequenceUtil;
 import com.github.novicezk.midjourney.ProxyProperties;
 import lombok.RequiredArgsConstructor;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
 public class DiscordHelper {
 	private final ProxyProperties properties;
-	/**
-	 * SIMPLE_URL_PREFIX.
-	 */
-	public static final String SIMPLE_URL_PREFIX = "https://s.mj.run/";
 	/**
 	 * DISCORD_SERVER_URL.
 	 */
@@ -34,6 +21,10 @@ public class DiscordHelper {
 	 * DISCORD_WSS_URL.
 	 */
 	public static final String DISCORD_WSS_URL = "wss://gateway.discord.gg";
+	/**
+	 * DISCORD_UPLOAD_URL.
+	 */
+	public static final String DISCORD_UPLOAD_URL = "https://discord-attachments-uploads-prd.storage.googleapis.com";
 
 	public String getServer() {
 		if (CharSequenceUtil.isBlank(this.properties.getNgDiscord().getServer())) {
@@ -68,28 +59,15 @@ public class DiscordHelper {
 		return wssUrl;
 	}
 
-
-	public String getRealPrompt(String prompt) {
-		String regex = "<https?://\\S+>";
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(prompt);
-		while (matcher.find()) {
-			String url = matcher.group();
-			String realUrl = getRealUrl(url.substring(1, url.length() - 1));
-			prompt = prompt.replace(url, realUrl);
+	public String getDiscordUploadUrl(String uploadUrl) {
+		if (CharSequenceUtil.isBlank(this.properties.getNgDiscord().getUploadServer()) || CharSequenceUtil.isBlank(uploadUrl)) {
+			return uploadUrl;
 		}
-		return prompt;
-	}
-
-	public String getRealUrl(String url) {
-		if (!CharSequenceUtil.startWith(url, SIMPLE_URL_PREFIX)) {
-			return url;
+		String uploadServer = this.properties.getNgDiscord().getUploadServer();
+		if (uploadServer.endsWith("/")) {
+			uploadServer = uploadServer.substring(0, uploadServer.length() - 1);
 		}
-		ResponseEntity<Void> res = getDisableRedirectRestTemplate().getForEntity(url, Void.class);
-		if (res.getStatusCode() == HttpStatus.FOUND) {
-			return res.getHeaders().getFirst("Location");
-		}
-		return url;
+		return uploadUrl.replaceFirst(DISCORD_UPLOAD_URL, uploadServer);
 	}
 
 	public String findTaskIdWithCdnUrl(String url) {
@@ -104,12 +82,22 @@ public class DiscordHelper {
 		return null;
 	}
 
-	private RestTemplate getDisableRedirectRestTemplate() {
-		CloseableHttpClient httpClient = HttpClientBuilder.create()
-				.disableRedirectHandling()
-				.build();
-		HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
-		return new RestTemplate(factory);
+	public String getMessageHash(String imageUrl) {
+		if (CharSequenceUtil.isBlank(imageUrl)) {
+			return null;
+		}
+		if (CharSequenceUtil.endWith(imageUrl, "_grid_0.webp")) {
+			int hashStartIndex = imageUrl.lastIndexOf("/");
+			if (hashStartIndex < 0) {
+				return null;
+			}
+			return CharSequenceUtil.sub(imageUrl, hashStartIndex + 1, imageUrl.length() - "_grid_0.webp".length());
+		}
+		int hashStartIndex = imageUrl.lastIndexOf("_");
+		if (hashStartIndex < 0) {
+			return null;
+		}
+		return CharSequenceUtil.subBefore(imageUrl.substring(hashStartIndex + 1), ".", true);
 	}
 
 }
